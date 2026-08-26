@@ -21,3 +21,7 @@
 - [x] Recompose core screens with a more distinctive Emergent-inspired visual rhythm and content hierarchy.
 - [x] Replace generic dashboard treatments with more expressive, worker-centered visual modules and micro-details.
 - [x] Validate the reworked experience on the native Android bundle before delivery.
+- [x] Add local worker profile photo selection and display in the Profile screen.
+- [x] Sort the jobs feed by nearest distance with a user-controlled order toggle.
+- [x] Add contractor verification badges and detailed trust signals to job listings.
+- [x] Validate photo selection, distance sorting, and contractor trust data on native Android.

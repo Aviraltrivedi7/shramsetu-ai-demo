@@ -17,6 +17,8 @@ import {
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { ContractorTrustPanel } from "@/components/contractor-trust-panel";
+import { ProfilePhotoControl } from "@/components/profile-photo-control";
 import { haptic } from "@/lib/haptics";
 import { copy, skillLabels, type AppCopy } from "@/lib/shramsetu-copy";
 import {
@@ -26,8 +28,10 @@ import {
   getChartMaximum,
   getFairWageRange,
   jobs,
+  sortJobs,
   type Job,
   type JobFilter,
+  type JobSort,
   type Language,
   type WorkerSkill,
   validateDemoOtp,
@@ -188,6 +192,7 @@ export default function HomeScreen() {
   const [language, setLanguage] = useState<Language>("Hindi");
   const [jobFeed, setJobFeed] = useState<Job[]>(jobs);
   const [jobFilter, setJobFilter] = useState<JobFilter>("All");
+  const [jobSort, setJobSort] = useState<JobSort>("nearest");
   const [jobQuery, setJobQuery] = useState("");
   const [appliedJobs, setAppliedJobs] = useState<string[]>([]);
   const [workerSkill, setWorkerSkill] = useState<WorkerSkill>("Mason");
@@ -201,7 +206,7 @@ export default function HomeScreen() {
   const [newJob, setNewJob] = useState({ contractor: "", title: "", location: "", salary: "", duration: "", skill: "Mason" as WorkerSkill });
   const otpRefs = useRef<Array<TextInput | null>>([]);
   const c = copy[language];
-  const filteredJobs = useMemo(() => filterJobs(jobFeed, jobQuery, jobFilter), [jobFeed, jobFilter, jobQuery]);
+  const filteredJobs = useMemo(() => sortJobs(filterJobs(jobFeed, jobQuery, jobFilter), jobSort), [jobFeed, jobFilter, jobQuery, jobSort]);
   const wageRange = useMemo(() => getFairWageRange(workerSkill, experience), [workerSkill, experience]);
 
   const showToast = (message: string) => { setToast(message); setTimeout(() => setToast(null), 2600); };
@@ -232,7 +237,36 @@ export default function HomeScreen() {
   const renderHisab = () => <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}><PageHeader language={language} onLanguage={chooseLanguage} title={c.yourMoney} /><View style={[styles.savingsCard, polish.savingsCard]}><View style={polish.savingsTopLine}><Text style={styles.savingsLabel}>{c.monthlySavings}</Text><View style={polish.savingsStatus}><AppIcon name="trending-up" size={14} color={COLORS.success} /><Text style={polish.savingsStatusText}>{language === "Hindi" ? "On track" : "On track"}</Text></View></View><Text style={styles.savingsValue}>₹600</Text><View style={polish.savingsRule} /><Text style={styles.savingsMeta}>{c.trend}</Text></View><EarningsChart c={c} /><View style={styles.ledgerTabs}>{(["Kamaai", "Kharch", "Bachat"] as LedgerMode[]).map((item) => <Pressable key={item} onPress={() => { haptic.selection(); setLedgerMode(item); }} style={({ pressed }) => [styles.ledgerTab, ledgerMode === item && styles.ledgerTabSelected, pressed && styles.pressed]}><Text style={[styles.ledgerTabText, ledgerMode === item && styles.ledgerTabTextSelected]}>{item === "Kamaai" ? c.earnings : item === "Kharch" ? c.spend : c.savings}</Text></Pressable>)}</View><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{ledgerMode === "Kamaai" ? c.recentEarnings : ledgerMode === "Kharch" ? c.recentExpenses : c.savingsPlan}</Text><Pressable accessibilityRole="button" onPress={() => setEntryModalVisible(true)} style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}><Text style={styles.linkText}>{c.addEntry}</Text></Pressable></View>{renderLedger()}</ScrollView>;
 
   const renderProfile = () => <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}><PageHeader language={language} onLanguage={chooseLanguage} title={c.profile} /><View style={styles.profileIntro}><View style={styles.profileAvatar}><Text style={styles.profileAvatarText}>RK</Text></View><View><Text style={styles.profileName}>Ramesh Kumar</Text><Text style={styles.profileLocation}>Lucknow, Uttar Pradesh</Text><View style={styles.verifiedIdentityRow}><AppIcon name="check-circle" size={16} color={COLORS.success} /><Text style={styles.verifiedIdentityText}>{c.verifiedIdentity}</Text></View></View></View><View style={styles.digitalIdCard}><View style={styles.idCardTopRow}><Text style={styles.idCardEyebrow}>{c.digitalId}</Text><AppIcon name="qr-code" size={28} color={COLORS.white} /></View><Text style={styles.idNumber}>SS • 9876 5432 10</Text><Text style={styles.idIssue}>Issued 12 Jan 2024 • Active</Text></View><Text style={styles.sectionTitle}>{c.verifiedSkills}</Text><View style={styles.verifiedSkillsRow}><SkillCard skill={skillLabels[language].Mason} percent="88%" progressStyle={styles.skillProgress88} /><SkillCard skill={skillLabels[language].Painter} percent="75%" progressStyle={styles.skillProgress75} /></View><Text style={styles.sectionTitle}>{c.profileSettings}</Text><View style={styles.settingsCard}><View style={styles.languageSettingRow}><View style={styles.settingIcon}><AppIcon name="language" size={21} /></View><View style={styles.settingCopy}><Text style={styles.settingLabel}>{c.language}</Text><Text style={styles.settingHint}>{c.languageHint}</Text></View><LanguageToggle language={language} onSelect={chooseLanguage} /></View><SettingRow icon="help-outline" label="Help & support" onPress={() => showToast("Support is ready to help")} /><SettingRow icon="lock-outline" label="Privacy & security" onPress={() => showToast("Privacy settings are local")} /><SettingRow icon="logout" label={c.logout} destructive onPress={logout} /></View></ScrollView>;
-  const renderActive = () => activeTab === "Home" ? renderHome() : activeTab === "Kaam" ? renderJobs() : activeTab === "Fair Wage" ? renderFairWage() : activeTab === "Hisab" ? renderHisab() : renderProfile();
+  const renderEnhancedJobs = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <PageHeader language={language} onLanguage={chooseLanguage} title={c.findJobs} />
+      <View style={jobsEnhancements.locationPanel}>
+        <View style={jobsEnhancements.locationIcon}><AppIcon name="near-me" size={19} color={COLORS.success} /></View>
+        <View style={jobsEnhancements.locationCopy}><Text style={jobsEnhancements.locationTitle}>{language === "Hindi" ? "Sabse paas ke kaam" : "Jobs nearest to you"}</Text><Text style={jobsEnhancements.locationText}>{language === "Hindi" ? "Lucknow se distance ke hisaab se" : "Sorted by distance from Lucknow"}</Text></View>
+        <View style={jobsEnhancements.sortToggle}>
+          <Pressable onPress={() => { haptic.selection(); setJobSort("nearest"); }} style={[jobsEnhancements.sortChoice, jobSort === "nearest" && jobsEnhancements.sortChoiceActive]}><Text style={[jobsEnhancements.sortChoiceText, jobSort === "nearest" && jobsEnhancements.sortChoiceTextActive]}>{language === "Hindi" ? "Paas" : "Near"}</Text></Pressable>
+          <Pressable onPress={() => { haptic.selection(); setJobSort("best-match"); }} style={[jobsEnhancements.sortChoice, jobSort === "best-match" && jobsEnhancements.sortChoiceActive]}><Text style={[jobsEnhancements.sortChoiceText, jobSort === "best-match" && jobsEnhancements.sortChoiceTextActive]}>{language === "Hindi" ? "Match" : "Match"}</Text></Pressable>
+        </View>
+      </View>
+      <View style={[styles.searchField, polish.searchField]}><AppIcon name="search" size={20} color={COLORS.muted} /><TextInput accessibilityLabel="Search jobs" onChangeText={setJobQuery} placeholder={c.searchJobs} placeholderTextColor={COLORS.placeholder} style={styles.searchInput} value={jobQuery} /></View>
+      <View style={styles.filterRow}>{(["All", "Mason", "Painter", "Electrician"] as JobFilter[]).map((filter) => <Pressable key={filter} onPress={() => { haptic.selection(); setJobFilter(filter); }} style={({ pressed }) => [styles.filterPill, jobFilter === filter && styles.filterPillSelected, pressed && styles.pressed]}><Text style={[styles.filterPillText, jobFilter === filter && styles.filterPillTextSelected]}>{filter === "All" ? c.all : skillLabels[language][filter]}</Text></Pressable>)}</View>
+      <View style={[styles.jobsHeadingRow, polish.jobsHeadingRow]}><Text style={styles.listCount}>{filteredJobs.length} {c.jobsFound} • {appliedJobs.length} {c.applied}</Text><Pressable accessibilityRole="button" onPress={() => setJobModalVisible(true)} style={({ pressed }) => [styles.addJobButton, polish.addJobButton, pressed && styles.pressed]}><AppIcon name="add" size={17} color={COLORS.white} /><Text style={styles.addJobButtonText}>{c.addJob}</Text></Pressable></View>
+      {filteredJobs.length ? filteredJobs.map((job) => <View key={job.id} style={jobsEnhancements.jobCluster}><JobCard job={job} language={language} c={c} onApply={() => applyToJob(job)} /><ContractorTrustPanel job={job} language={language} /></View>) : <View style={styles.emptyState}><AppIcon name="search-off" size={30} color={COLORS.muted} /><Text style={styles.emptyTitle}>{c.noJobs}</Text><Text style={styles.emptyText}>{c.noJobsHint}</Text></View>}
+    </ScrollView>
+  );
+  const renderEnhancedProfile = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <PageHeader language={language} onLanguage={chooseLanguage} title={c.profile} />
+      <View style={profileEnhancements.identityPanel}>
+        <ProfilePhotoControl language={language} onFeedback={showToast} />
+        <View style={profileEnhancements.identityCopy}><Text style={styles.profileName}>Ramesh Kumar</Text><Text style={styles.profileLocation}>Lucknow, Uttar Pradesh</Text><View style={styles.verifiedIdentityRow}><AppIcon name="check-circle" size={16} color={COLORS.success} /><Text style={styles.verifiedIdentityText}>{c.verifiedIdentity}</Text></View><Text style={profileEnhancements.identityHint}>{language === "Hindi" ? "Photo add karke profile ko personal banayein" : "Add a photo to make this profile personal"}</Text></View>
+      </View>
+      <View style={styles.digitalIdCard}><View style={styles.idCardTopRow}><Text style={styles.idCardEyebrow}>{c.digitalId}</Text><AppIcon name="qr-code" size={28} color={COLORS.white} /></View><Text style={styles.idNumber}>SS • 9876 5432 10</Text><Text style={styles.idIssue}>Issued 12 Jan 2024 • Active</Text></View>
+      <Text style={styles.sectionTitle}>{c.verifiedSkills}</Text><View style={styles.verifiedSkillsRow}><SkillCard skill={skillLabels[language].Mason} percent="88%" progressStyle={styles.skillProgress88} /><SkillCard skill={skillLabels[language].Painter} percent="75%" progressStyle={styles.skillProgress75} /></View>
+      <Text style={styles.sectionTitle}>{c.profileSettings}</Text><View style={styles.settingsCard}><View style={styles.languageSettingRow}><View style={styles.settingIcon}><AppIcon name="language" size={21} /></View><View style={styles.settingCopy}><Text style={styles.settingLabel}>{c.language}</Text><Text style={styles.settingHint}>{c.languageHint}</Text></View><LanguageToggle language={language} onSelect={chooseLanguage} /></View><SettingRow icon="help-outline" label="Help & support" onPress={() => showToast("Support is ready to help")} /><SettingRow icon="lock-outline" label="Privacy & security" onPress={() => showToast("Privacy settings are local")} /><SettingRow icon="logout" label={c.logout} destructive onPress={logout} /></View>
+    </ScrollView>
+  );
+  const renderActive = () => activeTab === "Home" ? renderHome() : activeTab === "Kaam" ? renderEnhancedJobs() : activeTab === "Fair Wage" ? renderFairWage() : activeTab === "Hisab" ? renderHisab() : renderEnhancedProfile();
   const tabLabel = (tab: AppTab) => tab === "Home" ? c.home : tab === "Kaam" ? c.jobs : tab === "Fair Wage" ? c.fair : tab === "Hisab" ? c.savings : c.profile;
 
   return <ScreenContainer edges={["top", "bottom", "left", "right"]} containerClassName="bg-background"><StatusBar barStyle="dark-content" backgroundColor={COLORS.canvas} />{mode === "phone" ? renderPhone() : mode === "otp" ? renderOtp() : <View style={styles.appShell}><View style={styles.mainContent}>{renderActive()}</View><SafeAreaView style={styles.bottomNavSafeArea}><View style={[styles.bottomNav, polish.bottomNav]}>{NAV_ITEMS.map((item) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.key }} key={item.key} onPress={() => { haptic.selection(); setActiveTab(item.key); }} style={({ pressed }) => [styles.navItem, activeTab === item.key && polish.navItemActive, pressed && styles.navItemPressed]}><AppIcon name={item.icon} size={22} color={activeTab === item.key ? COLORS.orange : COLORS.muted} /><Text style={[styles.navLabel, activeTab === item.key && styles.navLabelActive]}>{tabLabel(item.key)}</Text></Pressable>)}</View></SafeAreaView></View>}<Toast message={toast} /><EntryModal c={c} visible={entryModalVisible} entryAmount={entryAmount} entryType={entryType} onAmount={setEntryAmount} onType={setEntryType} onClose={() => setEntryModalVisible(false)} onSave={saveEntry} /><JobModal c={c} language={language} visible={jobModalVisible} job={newJob} onChange={setNewJob} onClose={() => setJobModalVisible(false)} onSave={saveJob} /></ScreenContainer>;
@@ -335,4 +369,24 @@ const reference = StyleSheet.create({
   pendingBanner: { borderColor: "#F6E5C8", borderWidth: 1 },
   phoneField: { borderColor: "#E2E7ED", borderRadius: 15, marginTop: 0 },
   quickActionsCard: { borderColor: "#E5EAF1", borderRadius: 18 },
+});
+
+const jobsEnhancements = StyleSheet.create({
+  jobCluster: { marginBottom: 10 },
+  locationCopy: { flex: 1 },
+  locationIcon: { alignItems: "center", backgroundColor: COLORS.white, borderRadius: 12, height: 38, justifyContent: "center", width: 38 },
+  locationPanel: { alignItems: "center", backgroundColor: "#F1F7F3", borderColor: "#DFEDE4", borderRadius: 15, borderWidth: 1, flexDirection: "row", gap: 10, marginBottom: 14, padding: 12 },
+  locationText: { color: "#60776B", fontSize: 11, marginTop: 3 },
+  locationTitle: { color: "#224B39", fontSize: 14, fontWeight: "900" },
+  sortChoice: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7 },
+  sortChoiceActive: { backgroundColor: COLORS.navy },
+  sortChoiceText: { color: COLORS.navy, fontSize: 10, fontWeight: "900" },
+  sortChoiceTextActive: { color: COLORS.white },
+  sortToggle: { backgroundColor: COLORS.white, borderColor: "#D9E6DD", borderRadius: 10, borderWidth: 1, flexDirection: "row", padding: 2 },
+});
+
+const profileEnhancements = StyleSheet.create({
+  identityCopy: { flex: 1 },
+  identityHint: { color: COLORS.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
+  identityPanel: { alignItems: "center", backgroundColor: COLORS.white, borderColor: COLORS.border, borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 14, marginBottom: 20, padding: 15 },
 });

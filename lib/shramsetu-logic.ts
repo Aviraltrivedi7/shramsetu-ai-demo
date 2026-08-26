@@ -1,6 +1,7 @@
 export type Language = "Hindi" | "English";
 export type WorkerSkill = "Mason" | "Painter" | "Electrician";
 export type JobFilter = "All" | WorkerSkill;
+export type JobSort = "nearest" | "best-match";
 
 export type LocalizedText = Record<Language, string>;
 
@@ -15,6 +16,14 @@ export type Job = {
   duration: number;
   skill: WorkerSkill;
   initial: string;
+  distanceKm: number;
+  contractorTrust: {
+    verified: boolean;
+    paymentScore: number;
+    responseRate: number;
+    completedProjects: number;
+    memberSince: string;
+  };
 };
 
 export type NewJobInput = {
@@ -44,6 +53,8 @@ export const jobs: Job[] = [
     duration: 45,
     skill: "Mason",
     initial: "A",
+    distanceKm: 2.4,
+    contractorTrust: { verified: true, paymentScore: 96, responseRate: 92, completedProjects: 38, memberSince: "2021" },
   },
   {
     id: "buildright-contractors",
@@ -56,6 +67,8 @@ export const jobs: Job[] = [
     duration: 20,
     skill: "Painter",
     initial: "B",
+    distanceKm: 4.8,
+    contractorTrust: { verified: true, paymentScore: 89, responseRate: 86, completedProjects: 19, memberSince: "2022" },
   },
 ];
 
@@ -106,6 +119,15 @@ export function filterJobs(jobList: Job[], query: string, filter: JobFilter) {
   });
 }
 
+export function sortJobs(jobList: Job[], sort: JobSort) {
+  return [...jobList].sort((left, right) => {
+    if (sort === "nearest") {
+      return left.distanceKm - right.distanceKm || right.match - left.match;
+    }
+    return right.match - left.match || left.distanceKm - right.distanceKm;
+  });
+}
+
 export function createLocalJob(input: NewJobInput, id: string): Job {
   const contractor = input.contractor.trim();
   const title = input.title.trim();
@@ -126,6 +148,8 @@ export function createLocalJob(input: NewJobInput, id: string): Job {
     duration: Math.round(input.duration),
     skill: input.skill,
     initial: contractor.charAt(0).toUpperCase(),
+    distanceKm: Number(location.match(/(\d+(?:\.\d+)?)\s*km/i)?.[1] ?? 9.9),
+    contractorTrust: { verified: false, paymentScore: 72, responseRate: 78, completedProjects: 0, memberSince: "New" },
   };
 }
 
