@@ -18,3 +18,6 @@
 - [x] Refine the visual hierarchy, typography, surfaces, and spacing for a more human-designed product feel.
 - [x] Improve contextual copy, empty states, and interaction feedback across key mobile flows.
 - [x] Validate the refined interface and native bundle before delivery.
+- [x] Recompose core screens with a more distinctive Emergent-inspired visual rhythm and content hierarchy.
+- [x] Replace generic dashboard treatments with more expressive, worker-centered visual modules and micro-details.
+- [x] Validate the reworked experience on the native Android bundle before delivery.
