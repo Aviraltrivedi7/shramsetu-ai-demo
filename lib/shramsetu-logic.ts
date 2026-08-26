@@ -1,17 +1,35 @@
+export type Language = "Hindi" | "English";
 export type WorkerSkill = "Mason" | "Painter" | "Electrician";
-export type JobFilter = "All" | "Mason" | "Painter";
+export type JobFilter = "All" | WorkerSkill;
+
+export type LocalizedText = Record<Language, string>;
 
 export type Job = {
   id: string;
   contractor: string;
   reliability: number;
   match: number;
+  title: LocalizedText;
+  location: LocalizedText;
+  salary: number;
+  duration: number;
+  skill: WorkerSkill;
+  initial: string;
+};
+
+export type NewJobInput = {
+  contractor: string;
   title: string;
   location: string;
-  salary: string;
-  duration: string;
-  skill: Exclude<WorkerSkill, "Electrician">;
-  initial: string;
+  salary: number;
+  duration: number;
+  skill: WorkerSkill;
+};
+
+export type FinancePoint = {
+  label: string;
+  income: number;
+  expense: number;
 };
 
 export const jobs: Job[] = [
@@ -20,10 +38,10 @@ export const jobs: Job[] = [
     contractor: "ABC Construction",
     reliability: 91,
     match: 94,
-    title: "Senior Mason Required",
-    location: "Gomti Nagar, Lucknow • 2.4 km",
-    salary: "₹950/din",
-    duration: "45 din",
+    title: { Hindi: "Senior Mason Required", English: "Senior Mason Required" },
+    location: { Hindi: "Gomti Nagar, Lucknow • 2.4 km", English: "Gomti Nagar, Lucknow • 2.4 km" },
+    salary: 950,
+    duration: 45,
     skill: "Mason",
     initial: "A",
   },
@@ -32,14 +50,32 @@ export const jobs: Job[] = [
     contractor: "BuildRight Contractors",
     reliability: 84,
     match: 82,
-    title: "Painter for Residential Project",
-    location: "Hazratganj, Lucknow • 4.8 km",
-    salary: "₹800/din",
-    duration: "20 din",
+    title: { Hindi: "Residential project ke liye Painter", English: "Painter for Residential Project" },
+    location: { Hindi: "Hazratganj, Lucknow • 4.8 km", English: "Hazratganj, Lucknow • 4.8 km" },
+    salary: 800,
+    duration: 20,
     skill: "Painter",
     initial: "B",
   },
 ];
+
+export const financeSeries = {
+  week: [
+    { label: "Mon", income: 900, expense: 190 },
+    { label: "Tue", income: 950, expense: 240 },
+    { label: "Wed", income: 0, expense: 140 },
+    { label: "Thu", income: 1050, expense: 310 },
+    { label: "Fri", income: 950, expense: 220 },
+    { label: "Sat", income: 950, expense: 350 },
+    { label: "Sun", income: 0, expense: 110 },
+  ] satisfies FinancePoint[],
+  month: [
+    { label: "W1", income: 4200, expense: 1120 },
+    { label: "W2", income: 4800, expense: 1480 },
+    { label: "W3", income: 3900, expense: 980 },
+    { label: "W4", income: 5100, expense: 1690 },
+  ] satisfies FinancePoint[],
+};
 
 const wageBases: Record<WorkerSkill, { min: number; max: number }> = {
   Mason: { min: 850, max: 1050 },
@@ -61,11 +97,38 @@ export function getFairWageRange(skill: WorkerSkill, years: number) {
   };
 }
 
-export function filterJobs(query: string, filter: JobFilter) {
+export function filterJobs(jobList: Job[], query: string, filter: JobFilter) {
   const normalizedQuery = query.trim().toLowerCase();
-  return jobs.filter((job) => {
+  return jobList.filter((job) => {
     const matchesSkill = filter === "All" || job.skill === filter;
-    const searchable = `${job.contractor} ${job.title} ${job.skill} ${job.location}`.toLowerCase();
+    const searchable = `${job.contractor} ${job.title.Hindi} ${job.title.English} ${job.skill} ${job.location.Hindi} ${job.location.English}`.toLowerCase();
     return matchesSkill && (!normalizedQuery || searchable.includes(normalizedQuery));
   });
+}
+
+export function createLocalJob(input: NewJobInput, id: string): Job {
+  const contractor = input.contractor.trim();
+  const title = input.title.trim();
+  const location = input.location.trim();
+
+  if (!contractor || !title || !location || input.salary <= 0 || input.duration <= 0) {
+    throw new Error("A job requires a company, role, location, pay, and duration.");
+  }
+
+  return {
+    id,
+    contractor,
+    reliability: 80,
+    match: 88,
+    title: { Hindi: title, English: title },
+    location: { Hindi: location, English: location },
+    salary: Math.round(input.salary),
+    duration: Math.round(input.duration),
+    skill: input.skill,
+    initial: contractor.charAt(0).toUpperCase(),
+  };
+}
+
+export function getChartMaximum(points: FinancePoint[]) {
+  return Math.max(1, ...points.flatMap((point) => [point.income, point.expense]));
 }

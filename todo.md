@@ -10,3 +10,7 @@
 - [x] Configure matching five-item tab navigation, icons, safe areas, and visual press feedback.
 - [x] Validate TypeScript, tests, and the principal mobile flows.
 - [x] Generate, install, and configure the custom app icon assets.
+- [x] Add an app-wide Hindi and English language toggle in Profile with seamless screen copy updates.
+- [x] Add a responsive earnings-versus-expenses chart to the Hisab screen.
+- [x] Add a local job-creation flow that immediately appends a new entry to the Kaam feed.
+- [x] Validate the localization, chart, and dynamic job flows with automated tests and TypeScript checks.
