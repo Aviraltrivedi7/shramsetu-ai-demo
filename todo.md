@@ -14,3 +14,4 @@
 - [x] Add a responsive earnings-versus-expenses chart to the Hisab screen.
 - [x] Add a local job-creation flow that immediately appends a new entry to the Kaam feed.
 - [x] Validate the localization, chart, and dynamic job flows with automated tests and TypeScript checks.
+- [x] Diagnose and fix the Expo Go launch or connection failure on a physical device.
