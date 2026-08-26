@@ -17,6 +17,7 @@ export type Job = {
   skill: WorkerSkill;
   initial: string;
   distanceKm: number;
+  coordinates: { latitude: number; longitude: number };
   contractorTrust: {
     verified: boolean;
     paymentScore: number;
@@ -54,6 +55,7 @@ export const jobs: Job[] = [
     skill: "Mason",
     initial: "A",
     distanceKm: 2.4,
+    coordinates: { latitude: 26.8499, longitude: 80.9911 },
     contractorTrust: { verified: true, paymentScore: 96, responseRate: 92, completedProjects: 38, memberSince: "2021" },
   },
   {
@@ -68,6 +70,7 @@ export const jobs: Job[] = [
     skill: "Painter",
     initial: "B",
     distanceKm: 4.8,
+    coordinates: { latitude: 26.8467, longitude: 80.9462 },
     contractorTrust: { verified: true, paymentScore: 89, responseRate: 86, completedProjects: 19, memberSince: "2022" },
   },
 ];
@@ -128,6 +131,34 @@ export function sortJobs(jobList: Job[], sort: JobSort) {
   });
 }
 
+export function calculateDistanceKm(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+) {
+  const earthRadiusKm = 6371;
+  const latitudeDelta = ((to.latitude - from.latitude) * Math.PI) / 180;
+  const longitudeDelta = ((to.longitude - from.longitude) * Math.PI) / 180;
+  const startLatitude = (from.latitude * Math.PI) / 180;
+  const endLatitude = (to.latitude * Math.PI) / 180;
+  const haversine = Math.sin(latitudeDelta / 2) ** 2 + Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+export function orderJobsForCurrentLocation(
+  jobList: Job[],
+  userLocation: { latitude: number; longitude: number } | null,
+  sort: JobSort,
+) {
+  if (!userLocation) return sortJobs(jobList, sort);
+  return [...jobList].sort((left, right) => {
+    const leftDistance = calculateDistanceKm(userLocation, left.coordinates);
+    const rightDistance = calculateDistanceKm(userLocation, right.coordinates);
+    return sort === "nearest"
+      ? leftDistance - rightDistance || right.match - left.match
+      : right.match - left.match || leftDistance - rightDistance;
+  });
+}
+
 export function createLocalJob(input: NewJobInput, id: string): Job {
   const contractor = input.contractor.trim();
   const title = input.title.trim();
@@ -149,6 +180,7 @@ export function createLocalJob(input: NewJobInput, id: string): Job {
     skill: input.skill,
     initial: contractor.charAt(0).toUpperCase(),
     distanceKm: Number(location.match(/(\d+(?:\.\d+)?)\s*km/i)?.[1] ?? 9.9),
+    coordinates: { latitude: 26.8467, longitude: 80.9462 },
     contractorTrust: { verified: false, paymentScore: 72, responseRate: 78, completedProjects: 0, memberSince: "New" },
   };
 }

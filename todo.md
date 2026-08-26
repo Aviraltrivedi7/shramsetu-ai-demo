@@ -25,3 +25,7 @@
 - [x] Sort the jobs feed by nearest distance with a user-controlled order toggle.
 - [x] Add contractor verification badges and detailed trust signals to job listings.
 - [x] Validate photo selection, distance sorting, and contractor trust data on native Android.
+- [x] Add device GPS permission and current-location-based job ordering with clear status feedback.
+- [x] Add a local in-app chat interface for workers and verified contractors.
+- [x] Add profile photo crop and adjustment controls before local save.
+- [x] Validate permissions, location ordering, messaging, and adjusted photo behavior on Android.

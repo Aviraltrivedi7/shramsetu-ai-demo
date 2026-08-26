@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { copy } from "../lib/shramsetu-copy";
-import { createLocalJob, filterJobs, financeSeries, getChartMaximum, getFairWageRange, jobs, sortJobs, validateDemoOtp } from "../lib/shramsetu-logic";
+import { createLocalJob, filterJobs, financeSeries, getChartMaximum, getFairWageRange, jobs, orderJobsForCurrentLocation, sortJobs, validateDemoOtp } from "../lib/shramsetu-logic";
 
 describe("ShramSetu demo flow logic", () => {
   it("accepts only the seeded demo OTP", () => {
@@ -26,6 +26,11 @@ describe("ShramSetu demo flow logic", () => {
 
   it("orders available work by distance when a worker chooses nearby jobs", () => {
     expect(sortJobs([jobs[1], jobs[0]], "nearest").map((job) => job.id)).toEqual(["abc-construction", "buildright-contractors"]);
+  });
+
+  it("reorders available work from the worker's actual current coordinates", () => {
+    const nearHazratganj = { latitude: 26.8467, longitude: 80.9462 };
+    expect(orderJobsForCurrentLocation(jobs, nearHazratganj, "nearest")[0]?.id).toBe("buildright-contractors");
   });
 
   it("creates a local job that immediately becomes searchable in the feed", () => {

@@ -15,19 +15,23 @@ import {
   View,
 } from "react-native";
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
+import * as Location from "expo-location";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { ContractorChatSheet } from "@/components/contractor-chat-sheet";
 import { ContractorTrustPanel } from "@/components/contractor-trust-panel";
 import { ProfilePhotoControl } from "@/components/profile-photo-control";
 import { haptic } from "@/lib/haptics";
 import { copy, skillLabels, type AppCopy } from "@/lib/shramsetu-copy";
 import {
+  calculateDistanceKm,
   createLocalJob,
   filterJobs,
   financeSeries,
   getChartMaximum,
   getFairWageRange,
   jobs,
+  orderJobsForCurrentLocation,
   sortJobs,
   type Job,
   type JobFilter,
@@ -124,7 +128,7 @@ function MetricCard({ icon, value, label, color }: { icon: string; value: string
   return <View style={[styles.metricCard, polish.metricCard]}><AppIcon name={icon} size={20} color={color} /><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
 }
 
-function JobCard({ job, language, c, onApply, compact = false }: { job: Job; language: Language; c: AppCopy; onApply: () => void; compact?: boolean }) {
+function JobCard({ job, language, c, onApply, onMessage, distanceKm, compact = false }: { job: Job; language: Language; c: AppCopy; onApply: () => void; onMessage?: () => void; distanceKm?: number; compact?: boolean }) {
   return (
     <View style={[styles.jobCard, polish.jobCard, compact && styles.jobCardCompact]}>
       <View style={styles.jobTopRow}>
@@ -134,11 +138,13 @@ function JobCard({ job, language, c, onApply, compact = false }: { job: Job; lan
       <Text style={styles.jobTitle}>{job.title[language]}</Text>
       <View style={styles.jobInfoRow}><AppIcon name="location-on" size={16} color={COLORS.muted} /><Text style={styles.jobInfoText}>{job.location[language]}</Text></View>
       <View style={styles.jobMetaRow}><Text style={styles.jobSalary}>{formatRupees(job.salary)}/{c.perDay}</Text><View style={styles.jobDuration}><AppIcon name="calendar-today" size={14} color={COLORS.muted} /><Text style={styles.jobDurationText}>{job.duration} {c.days}</Text></View><View style={styles.skillChip}><Text style={styles.skillChipText}>{skillLabels[language][job.skill]}</Text></View></View>
+      {distanceKm !== undefined ? <View style={locationStyles.distanceRow}><AppIcon name="near-me" size={15} color={COLORS.success} /><Text style={locationStyles.distanceText}>{distanceKm.toFixed(1)} km {language === "Hindi" ? "aapse door" : "away from you"}</Text></View> : null}
       <View style={styles.matchLineTrack}><View style={job.match > 90 ? styles.matchLine94 : styles.matchLine82} /></View>
       <View style={reference.jobChecks}>
         <View style={reference.jobCheckItem}><AppIcon name="check-circle" size={15} color={COLORS.success} /><Text style={reference.jobCheckText}>{language === "Hindi" ? "Aapki skill aur location se match" : "Matches your skills and location"}</Text></View>
         <View style={reference.jobCheckItem}><AppIcon name="check-circle" size={15} color={COLORS.success} /><Text style={reference.jobCheckText}>{language === "Hindi" ? "Contractor ka payment record reliable hai" : "Contractor payment record is reliable"}</Text></View>
       </View>
+      {onMessage && job.contractorTrust.verified ? <Pressable accessibilityRole="button" onPress={onMessage} style={({ pressed }) => [chatStyles.messageButton, pressed && styles.pressed]}><AppIcon name="chat-bubble-outline" size={18} color={COLORS.navy} /><Text style={chatStyles.messageButtonText}>{language === "Hindi" ? "Verified contractor ko message karein" : "Message verified contractor"}</Text><AppIcon name="chevron-right" size={18} color={COLORS.muted} /></Pressable> : null}
       <PrimaryButton label={c.apply} icon="arrow-forward" onPress={onApply} />
     </View>
   );
@@ -193,6 +199,9 @@ export default function HomeScreen() {
   const [jobFeed, setJobFeed] = useState<Job[]>(jobs);
   const [jobFilter, setJobFilter] = useState<JobFilter>("All");
   const [jobSort, setJobSort] = useState<JobSort>("nearest");
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationState, setLocationState] = useState<"idle" | "loading" | "ready" | "denied" | "unavailable">("idle");
+  const [chatJob, setChatJob] = useState<Job | null>(null);
   const [jobQuery, setJobQuery] = useState("");
   const [appliedJobs, setAppliedJobs] = useState<string[]>([]);
   const [workerSkill, setWorkerSkill] = useState<WorkerSkill>("Mason");
@@ -206,7 +215,7 @@ export default function HomeScreen() {
   const [newJob, setNewJob] = useState({ contractor: "", title: "", location: "", salary: "", duration: "", skill: "Mason" as WorkerSkill });
   const otpRefs = useRef<Array<TextInput | null>>([]);
   const c = copy[language];
-  const filteredJobs = useMemo(() => sortJobs(filterJobs(jobFeed, jobQuery, jobFilter), jobSort), [jobFeed, jobFilter, jobQuery, jobSort]);
+  const filteredJobs = useMemo(() => orderJobsForCurrentLocation(filterJobs(jobFeed, jobQuery, jobFilter), currentLocation, jobSort), [currentLocation, jobFeed, jobFilter, jobQuery, jobSort]);
   const wageRange = useMemo(() => getFairWageRange(workerSkill, experience), [workerSkill, experience]);
 
   const showToast = (message: string) => { setToast(message); setTimeout(() => setToast(null), 2600); };
@@ -221,6 +230,32 @@ export default function HomeScreen() {
       const job = createLocalJob({ contractor: newJob.contractor, title: newJob.title, location: newJob.location, salary: Number(newJob.salary), duration: Number(newJob.duration), skill: newJob.skill }, `local-job-${jobFeed.length + 1}`);
       haptic.success(); setJobFeed((current) => [job, ...current]); setJobFilter("All"); setJobQuery(""); setJobModalVisible(false); setNewJob({ contractor: "", title: "", location: "", salary: "", duration: "", skill: "Mason" }); showToast(c.newJobSaved);
     } catch { haptic.error(); showToast(c.jobsRequired); }
+  };
+  const useCurrentLocation = async () => {
+    try {
+      setLocationState("loading");
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        setLocationState("unavailable");
+        showToast(language === "Hindi" ? "Phone ki location service on karein" : "Turn on location services to continue");
+        return;
+      }
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") {
+        setLocationState("denied");
+        showToast(language === "Hindi" ? "Location permission nahi mili" : "Location permission was not granted");
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCurrentLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      setLocationState("ready");
+      haptic.success();
+      showToast(language === "Hindi" ? "Current location ke hisaab se jobs sort ho gayi" : "Jobs are now sorted using your current location");
+    } catch {
+      setLocationState("unavailable");
+      haptic.error();
+      showToast(language === "Hindi" ? "Location abhi available nahi hai" : "Current location is not available right now");
+    }
   };
   const logout = () => { const confirm = () => { haptic.light(); setMode("phone"); setPhone(""); setOtp(["", "", "", ""]); showToast(c.logout); }; if (Platform.OS === "web") { confirm(); return; } Alert.alert(c.logoutTitle, c.logoutConfirm, [{ text: "Cancel", style: "cancel" }, { text: c.logout, style: "destructive", onPress: confirm }]); };
 
@@ -240,18 +275,18 @@ export default function HomeScreen() {
   const renderEnhancedJobs = () => (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <PageHeader language={language} onLanguage={chooseLanguage} title={c.findJobs} />
-      <View style={jobsEnhancements.locationPanel}>
+      <Pressable accessibilityRole="button" onPress={useCurrentLocation} style={({ pressed }) => [jobsEnhancements.locationPanel, pressed && styles.pressed]}>
         <View style={jobsEnhancements.locationIcon}><AppIcon name="near-me" size={19} color={COLORS.success} /></View>
-        <View style={jobsEnhancements.locationCopy}><Text style={jobsEnhancements.locationTitle}>{language === "Hindi" ? "Sabse paas ke kaam" : "Jobs nearest to you"}</Text><Text style={jobsEnhancements.locationText}>{language === "Hindi" ? "Lucknow se distance ke hisaab se" : "Sorted by distance from Lucknow"}</Text></View>
+        <View style={jobsEnhancements.locationCopy}><Text style={jobsEnhancements.locationTitle}>{language === "Hindi" ? "Sabse paas ke kaam" : "Jobs nearest to you"}</Text><Text style={jobsEnhancements.locationText}>{locationState === "ready" ? (language === "Hindi" ? "GPS active • current location ke hisaab se" : "GPS active • using your current location") : locationState === "loading" ? (language === "Hindi" ? "Current location mil rahi hai..." : "Getting your current location...") : (language === "Hindi" ? "Current location use karne ke liye tap karein" : "Tap to use your current location")}</Text></View>
         <View style={jobsEnhancements.sortToggle}>
           <Pressable onPress={() => { haptic.selection(); setJobSort("nearest"); }} style={[jobsEnhancements.sortChoice, jobSort === "nearest" && jobsEnhancements.sortChoiceActive]}><Text style={[jobsEnhancements.sortChoiceText, jobSort === "nearest" && jobsEnhancements.sortChoiceTextActive]}>{language === "Hindi" ? "Paas" : "Near"}</Text></Pressable>
           <Pressable onPress={() => { haptic.selection(); setJobSort("best-match"); }} style={[jobsEnhancements.sortChoice, jobSort === "best-match" && jobsEnhancements.sortChoiceActive]}><Text style={[jobsEnhancements.sortChoiceText, jobSort === "best-match" && jobsEnhancements.sortChoiceTextActive]}>{language === "Hindi" ? "Match" : "Match"}</Text></Pressable>
         </View>
-      </View>
+      </Pressable>
       <View style={[styles.searchField, polish.searchField]}><AppIcon name="search" size={20} color={COLORS.muted} /><TextInput accessibilityLabel="Search jobs" onChangeText={setJobQuery} placeholder={c.searchJobs} placeholderTextColor={COLORS.placeholder} style={styles.searchInput} value={jobQuery} /></View>
       <View style={styles.filterRow}>{(["All", "Mason", "Painter", "Electrician"] as JobFilter[]).map((filter) => <Pressable key={filter} onPress={() => { haptic.selection(); setJobFilter(filter); }} style={({ pressed }) => [styles.filterPill, jobFilter === filter && styles.filterPillSelected, pressed && styles.pressed]}><Text style={[styles.filterPillText, jobFilter === filter && styles.filterPillTextSelected]}>{filter === "All" ? c.all : skillLabels[language][filter]}</Text></Pressable>)}</View>
       <View style={[styles.jobsHeadingRow, polish.jobsHeadingRow]}><Text style={styles.listCount}>{filteredJobs.length} {c.jobsFound} • {appliedJobs.length} {c.applied}</Text><Pressable accessibilityRole="button" onPress={() => setJobModalVisible(true)} style={({ pressed }) => [styles.addJobButton, polish.addJobButton, pressed && styles.pressed]}><AppIcon name="add" size={17} color={COLORS.white} /><Text style={styles.addJobButtonText}>{c.addJob}</Text></Pressable></View>
-      {filteredJobs.length ? filteredJobs.map((job) => <View key={job.id} style={jobsEnhancements.jobCluster}><JobCard job={job} language={language} c={c} onApply={() => applyToJob(job)} /><ContractorTrustPanel job={job} language={language} /></View>) : <View style={styles.emptyState}><AppIcon name="search-off" size={30} color={COLORS.muted} /><Text style={styles.emptyTitle}>{c.noJobs}</Text><Text style={styles.emptyText}>{c.noJobsHint}</Text></View>}
+      {filteredJobs.length ? filteredJobs.map((job) => <View key={job.id} style={jobsEnhancements.jobCluster}><JobCard job={job} language={language} c={c} distanceKm={currentLocation ? calculateDistanceKm(currentLocation, job.coordinates) : job.distanceKm} onApply={() => applyToJob(job)} onMessage={() => setChatJob(job)} /><ContractorTrustPanel job={job} language={language} /></View>) : <View style={styles.emptyState}><AppIcon name="search-off" size={30} color={COLORS.muted} /><Text style={styles.emptyTitle}>{c.noJobs}</Text><Text style={styles.emptyText}>{c.noJobsHint}</Text></View>}
     </ScrollView>
   );
   const renderEnhancedProfile = () => (
@@ -269,7 +304,7 @@ export default function HomeScreen() {
   const renderActive = () => activeTab === "Home" ? renderHome() : activeTab === "Kaam" ? renderEnhancedJobs() : activeTab === "Fair Wage" ? renderFairWage() : activeTab === "Hisab" ? renderHisab() : renderEnhancedProfile();
   const tabLabel = (tab: AppTab) => tab === "Home" ? c.home : tab === "Kaam" ? c.jobs : tab === "Fair Wage" ? c.fair : tab === "Hisab" ? c.savings : c.profile;
 
-  return <ScreenContainer edges={["top", "bottom", "left", "right"]} containerClassName="bg-background"><StatusBar barStyle="dark-content" backgroundColor={COLORS.canvas} />{mode === "phone" ? renderPhone() : mode === "otp" ? renderOtp() : <View style={styles.appShell}><View style={styles.mainContent}>{renderActive()}</View><SafeAreaView style={styles.bottomNavSafeArea}><View style={[styles.bottomNav, polish.bottomNav]}>{NAV_ITEMS.map((item) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.key }} key={item.key} onPress={() => { haptic.selection(); setActiveTab(item.key); }} style={({ pressed }) => [styles.navItem, activeTab === item.key && polish.navItemActive, pressed && styles.navItemPressed]}><AppIcon name={item.icon} size={22} color={activeTab === item.key ? COLORS.orange : COLORS.muted} /><Text style={[styles.navLabel, activeTab === item.key && styles.navLabelActive]}>{tabLabel(item.key)}</Text></Pressable>)}</View></SafeAreaView></View>}<Toast message={toast} /><EntryModal c={c} visible={entryModalVisible} entryAmount={entryAmount} entryType={entryType} onAmount={setEntryAmount} onType={setEntryType} onClose={() => setEntryModalVisible(false)} onSave={saveEntry} /><JobModal c={c} language={language} visible={jobModalVisible} job={newJob} onChange={setNewJob} onClose={() => setJobModalVisible(false)} onSave={saveJob} /></ScreenContainer>;
+  return <ScreenContainer edges={["top", "bottom", "left", "right"]} containerClassName="bg-background"><StatusBar barStyle="dark-content" backgroundColor={COLORS.canvas} />{mode === "phone" ? renderPhone() : mode === "otp" ? renderOtp() : <View style={styles.appShell}><View style={styles.mainContent}>{renderActive()}</View><SafeAreaView style={styles.bottomNavSafeArea}><View style={[styles.bottomNav, polish.bottomNav]}>{NAV_ITEMS.map((item) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: activeTab === item.key }} key={item.key} onPress={() => { haptic.selection(); setActiveTab(item.key); }} style={({ pressed }) => [styles.navItem, activeTab === item.key && polish.navItemActive, pressed && styles.navItemPressed]}><AppIcon name={item.icon} size={22} color={activeTab === item.key ? COLORS.orange : COLORS.muted} /><Text style={[styles.navLabel, activeTab === item.key && styles.navLabelActive]}>{tabLabel(item.key)}</Text></Pressable>)}</View></SafeAreaView></View>}<Toast message={toast} /><EntryModal c={c} visible={entryModalVisible} entryAmount={entryAmount} entryType={entryType} onAmount={setEntryAmount} onType={setEntryType} onClose={() => setEntryModalVisible(false)} onSave={saveEntry} /><JobModal c={c} language={language} visible={jobModalVisible} job={newJob} onChange={setNewJob} onClose={() => setJobModalVisible(false)} onSave={saveJob} /><ContractorChatSheet job={chatJob} language={language} visible={Boolean(chatJob)} onClose={() => setChatJob(null)} /></ScreenContainer>;
 }
 
 function EntryModal({ c, visible, entryAmount, entryType, onAmount, onType, onClose, onSave }: { c: AppCopy; visible: boolean; entryAmount: string; entryType: "Kamaai" | "Kharch"; onAmount: (value: string) => void; onType: (value: "Kamaai" | "Kharch") => void; onClose: () => void; onSave: () => void }) {
@@ -389,4 +424,14 @@ const profileEnhancements = StyleSheet.create({
   identityCopy: { flex: 1 },
   identityHint: { color: COLORS.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
   identityPanel: { alignItems: "center", backgroundColor: COLORS.white, borderColor: COLORS.border, borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 14, marginBottom: 20, padding: 15 },
+});
+
+const locationStyles = StyleSheet.create({
+  distanceRow: { alignItems: "center", backgroundColor: "#F0F7F3", borderRadius: 9, flexDirection: "row", gap: 5, paddingHorizontal: 8, paddingVertical: 6 },
+  distanceText: { color: "#2B6E4F", fontSize: 11, fontWeight: "800" },
+});
+
+const chatStyles = StyleSheet.create({
+  messageButton: { alignItems: "center", backgroundColor: "#F5F8FB", borderColor: "#E2E8F0", borderRadius: 13, borderWidth: 1, flexDirection: "row", gap: 8, justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 12 },
+  messageButtonText: { color: COLORS.navy, flex: 1, fontSize: 13, fontWeight: "800" },
 });
