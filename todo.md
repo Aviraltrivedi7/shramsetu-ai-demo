@@ -29,4 +29,4 @@
 - [x] Add a local in-app chat interface for workers and verified contractors.
 - [x] Add profile photo crop and adjustment controls before local save.
 - [x] Validate permissions, location ordering, messaging, and adjusted photo behavior on Android.
-- [ ] Push the current ShramSetu AI project state to Aviraltrivedi7/shramsetu-ai-demo on GitHub.
+- [x] Push the current ShramSetu AI project state to Aviraltrivedi7/shramsetu-ai-demo on GitHub.
